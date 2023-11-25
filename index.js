@@ -78,8 +78,18 @@ async function run() {
     //post method for the shop
     app.post("/shops", async (req, res) => {
       const shop = req.body;
+      const userEmail = shop.email; // Assuming 'email' identifies the user
+    
+      const existingShop = await shopCollection.findOne({ email: userEmail });
+    
+      if (existingShop) {
+        return res.status(400).json({ message: "User already has a shop" });
+      }
+    
+      // If the user doesn't have a shop, proceed with creating the shop
       const result = await shopCollection.insertOne(shop);
       console.log(result);
+    
       res.send(result);
     });
 
