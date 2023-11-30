@@ -38,9 +38,9 @@ async function run() {
     const cartCollection = client.db("inventoryDB").collection("carts");
     const salesCollection = client.db("inventoryDB").collection("sales");
 
-     //middleware
-     const verifyToken = (req, res, next) => {
-      console.log("inside verify token", req.headers.authorization);
+    //middleware
+    const verifyToken = (req, res, next) => {
+      // console.log("inside verify token", req.headers.authorization);
       if (!req.headers.authorization) {
         return res.status(401).send({ message: "unauthorized access" });
       }
@@ -55,101 +55,124 @@ async function run() {
     };
 
     //sale collection
-    app.get("/sales", verifyToken, async (req, res) => {
+    app.get("/sales", async (req, res) => {
       const result = await salesCollection.find().toArray();
       res.send(result);
+    });
+
+
+    app.get("/sale/:email",verifyToken, async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email };
+      const results = await salesCollection.find(query).toArray();
+      res.send(results);
     });
 
     // cart collection
     app.post("/carts", async (req, res) => {
       try {
         const product = req.body;
-    
+
         // Fetch the product details from the product collection
         const productDetails = await productCollection.findOne({
-          _id: new ObjectId(product.id)
+          _id: new ObjectId(product.id),
         });
-    
+
         if (!productDetails) {
           return res.status(404).json({ message: "Product not found" });
         }
-    
+
         // Check if the product quantity is greater than 0
         if (productDetails.quantity > 0) {
           const result = await cartCollection.insertOne(product);
-          return res.status(200).json({ message: "Product added to cart successfully", result });
+          return res
+            .status(200)
+            .json({ message: "Product added to cart successfully", result });
         } else {
-          return res.status(400).json({ message: "Product quantity is 0, cannot be added to cart" });
+          return res
+            .status(400)
+            .json({
+              message: "Product quantity is 0, cannot be added to cart",
+            });
         }
       } catch (error) {
-        return res.status(500).json({ message: "Error adding product to cart", error: error.message });
+        return res
+          .status(500)
+          .json({
+            message: "Error adding product to cart",
+            error: error.message,
+          });
       }
     });
 
-    app.get("/carts", verifyToken, async (req, res) => {
-      const email = req.query.email;
+   
+    app.get("/carts", async (req, res) => {
+      const result = await cartCollection.find().toArray();
+      res.send(result);
+    });
+
+
+    app.get("/carts/:email",  async (req, res) => {
+      const email = req.params.email;
       const query = { email: email };
       const result = await cartCollection.find(query).toArray();
       res.send(result);
     });
 
-   // Assuming you have the necessary imports and configurations
+    // Assuming you have the necessary imports and configurations
 
-   app.patch("/carts/:email",verifyToken, async (req, res) => {
-    const email = req.params.email;
-  
-    try {
-      const findProducts = await cartCollection.find({ email }).toArray();
-      const salesData = []; // Array to store sales data
-  
-      const currentTime = new Date(); // Get current date and time
-  
-      for (const singleProduct of findProducts) {
-        const product = await productCollection.findOne({
-          _id: new ObjectId(singleProduct.id)
-        });
-  
-        if (product) {
-          await productCollection.updateOne(
-            { _id: product._id },
-            {
-              $set: {
-                quantity: product.quantity - 1,
-                saleCount: product.saleCount + 1
+    app.patch("/carts/:email", async (req, res) => {
+      const email = req.params.email;
+
+      try {
+        const findProducts = await cartCollection.find({ email }).toArray();
+        const salesData = []; // Array to store sales data
+
+        const currentTime = new Date(); // Get current date and time
+
+        for (const singleProduct of findProducts) {
+          const product = await productCollection.findOne({
+            _id: new ObjectId(singleProduct.id),
+          });
+
+          if (product) {
+            await productCollection.updateOne(
+              { _id: product._id },
+              {
+                $set: {
+                  quantity: product.quantity - 1,
+                  saleCount: product.saleCount + 1,
+                },
               }
-            }
-          );
-  
-          // Add sales information to the salesData array
-          salesData.push({
-            productId: product._id,
-            productName: product.name,
-            profit: product.profit,
-            sellingPrice: product.sellingPrice,
-            production: product.production,
-            quantitySold: 1,
-            saleDate: currentTime,
-        
-             // Add sale date and time
-          });
-  
-          await cartCollection.deleteOne({
-            _id: new ObjectId(singleProduct._id)
-          });
+            );
+
+            // Add sales information to the salesData array
+            salesData.push({
+              productId: product._id,
+              productName: product.name,
+              profit: product.profit,
+              email : product.email,
+              sellingPrice: parseFloat(product.sellingPrice),
+              production: product.production,
+              quantitySold: 1,
+              saleDate: currentTime,
+            });
+
+            await cartCollection.deleteOne({
+              _id: new ObjectId(singleProduct._id),
+            });
+          }
         }
+
+        // Insert sales data into the Sales Collection
+        await salesCollection.insertMany(salesData);
+
+        res.send({ status: true, message: "Checkout successful" });
+      } catch (error) {
+        res.status(500).send({ status: false, message: "Checkout failed" });
       }
-  
-      // Insert sales data into the Sales Collection
-      await salesCollection.insertMany(salesData);
-  
-      res.send({ status: true, message: "Checkout successful" });
-    } catch (error) {
-      res.status(500).send({ status: false, message: "Checkout failed" });
-    }
-  });
+    });
 
-
-    
     //jwt related api
     app.post("/jwt", async (req, res) => {
       const user = req.body;
@@ -158,8 +181,6 @@ async function run() {
       });
       res.send({ token });
     });
-
-   
 
     //post method  add the user in the database
     // insert email if user doesn't exists:
@@ -176,6 +197,11 @@ async function run() {
       res.send(useExist);
     });
 
+    app.get("/users", verifyToken, async (req, res) => {
+      const result = await userCollection.find().toArray();
+      res.send(result);
+    });
+
     //Api for the shop collection
 
     //get operation for the reviews data pass the client side
@@ -185,7 +211,7 @@ async function run() {
     });
 
     //post method for the shop
-    app.post("/shops", async (req, res) => {
+    app.post("/shops",verifyToken, async (req, res) => {
       const shop = req.body;
       const userEmail = shop.email; // Assuming 'email' identifies the user
 
@@ -209,6 +235,7 @@ async function run() {
             $set: {
               crateShop: true,
               roll: "manager",
+              shopName: shop.shopName,
             },
           };
 
@@ -227,7 +254,7 @@ async function run() {
       }
     });
 
-    app.get("/singleUser/:email",  async (req, res) => {
+    app.get("/singleUser/:email", async (req, res) => {
       const email = req.params.email;
       const query = { email: email };
       const results = await userCollection.findOne(query);
@@ -248,17 +275,10 @@ async function run() {
       }
     });
 
-    app.get('/users',async(req,res)=>{
-      const result = await shopCollection.find().toArray();
-      res.send(result);
-    })
-
-    app.get("/shops", async (req, res) => {
+    app.get("/shops",verifyToken, async (req, res) => {
       const result = await shopCollection.find().toArray();
       res.send(result);
     });
-
-
 
     app.get("/shops/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
@@ -288,7 +308,7 @@ async function run() {
       }
     });
 
-    app.get("/products", verifyToken, async (req, res) => {
+    app.get("/products",verifyToken, async (req, res) => {
       const result = await productCollection.find().toArray();
       res.send(result);
     });
@@ -301,20 +321,20 @@ async function run() {
     });
 
     //get operation for update the menu data pass the db
-    app.get("/myProducts/:id",verifyToken, async (req, res) => {
+    app.get("/myProducts/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await productCollection.findOne(query);
       res.send(result);
     });
 
-    app.get("/productSale",verifyToken, async (req, res) => {
+    app.get("/productSale", verifyToken, async (req, res) => {
       const result = await productCollection.find().toArray();
       res.send(result);
     });
 
     //patch operation for update the items value and pass the database
-    app.patch("/products/:id", async (req, res) => {
+    app.patch("/products/:id", verifyToken, async (req, res) => {
       const item = req.body;
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
@@ -401,7 +421,7 @@ async function run() {
     });
 
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
