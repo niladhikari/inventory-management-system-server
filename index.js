@@ -55,7 +55,7 @@ async function run() {
     };
 
     //sale collection
-    app.get("/sales", async (req, res) => {
+    app.get("/sales",verifyToken, async (req, res) => {
       const result = await salesCollection.find().toArray();
       res.send(result);
     });
@@ -106,13 +106,13 @@ async function run() {
     });
 
    
-    app.get("/carts", async (req, res) => {
+    app.get("/carts",verifyToken, async (req, res) => {
       const result = await cartCollection.find().toArray();
       res.send(result);
     });
 
 
-    app.get("/carts/:email",  async (req, res) => {
+    app.get("/carts/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
       const query = { email: email };
       const result = await cartCollection.find(query).toArray();
